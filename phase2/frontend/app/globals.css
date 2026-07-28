@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Light theme: green accent on white. RGB triplets for rgb(var(--x) / alpha). */
+  --accent: 23 163 32; /* #17A320 */
+  --accent-hover: 19 138 27; /* #138A1B */
+  --accent-soft: 234 247 235; /* #EAF7EB light green wash */
+  --accent-solid: #17a320;
+}
+
+:root.dark {
+  /* Dark theme: neon-er green accent on black. */
+  --accent: 38 224 58; /* #26E03A */
+  --accent-hover: 60 232 80; /* #3CE850 */
+  --accent-soft: 18 40 20; /* #122814 deep green wash */
+  --accent-solid: #26e03a;
+}
+
+html,
+body {
+  background: #ffffff;
+  color: #111111;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.dark,
+html.dark body {
+  background: #000000;
+  color: #f5f5f5;
+}
+
+/* Thin, on-brand focus ring using the current-theme accent. */
+*:focus-visible {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-solid);
+  color: #ffffff;
+}
+
+html.dark ::selection {
+  color: #000000;
+}

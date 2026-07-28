@@ -1,0 +1,40 @@
+# Fly.io config for the Drug Detective backend (FastAPI + Phase 1/3 pipeline).
+# The build context is this repo root, so the Dockerfile can copy both phase1/
+# (imported pipeline) and phase2/backend/ (the API).
+#
+# Deploy:
+#   fly launch --no-deploy      # first time: creates the app, keep this fly.toml
+#   fly secrets set OPENAI_API_KEY=sk-...   # your keys (never committed)
+#   fly deploy
+#
+# NOTE: `app` must be globally unique on Fly — change it if taken.
+
+app = "drug-detective-api"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "phase2/backend/Dockerfile"
+
+[env]
+  PORT = "8000"
+  # CORS: set to your Vercel URL after the frontend is deployed, e.g.
+  #   fly secrets set ALLOWED_ORIGINS="https://drug-detective.vercel.app"
+  # (env here is a safe default for pre-frontend testing)
+  ALLOWED_ORIGINS = "http://localhost:3000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  # SSE streams are long-lived; allow plenty of concurrent held connections.
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+[[vm]]
+  # The pipeline pulls pandas + makes many HTTP calls; 512MB is the safe floor.
+  size = "shared-cpu-1x"
+  memory = "512mb"

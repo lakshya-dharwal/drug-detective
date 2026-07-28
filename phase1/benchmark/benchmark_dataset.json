@@ -1,0 +1,87 @@
+[
+  {
+    "disease": "multiple myeloma",
+    "known_repurposed_drug": "thalidomide",
+    "source_citation": "Singhal S, Mehta J, Desikan R, et al. Antitumor activity of thalidomide in refractory multiple myeloma. N Engl J Med. 1999;341(21):1565-1571."
+  },
+  {
+    "disease": "pulmonary arterial hypertension",
+    "known_repurposed_drug": "sildenafil",
+    "source_citation": "Galie N, Ghofrani HA, Torbicki A, et al. Sildenafil citrate therapy for pulmonary arterial hypertension. N Engl J Med. 2005;353(20):2148-2157."
+  },
+  {
+    "disease": "colorectal cancer",
+    "known_repurposed_drug": "metformin",
+    "source_citation": "Higurashi T, Hosono K, Takahashi H, et al. Metformin for chemoprevention of metachronous colorectal adenoma or polyps in post-polypectomy patients without diabetes: a multicentre double-blind, placebo-controlled, randomised phase 3 trial. Lancet Oncol. 2016;17(4):475-483."
+  },
+  {
+    "disease": "androgenetic alopecia",
+    "known_repurposed_drug": "minoxidil",
+    "source_citation": "Zappacosta AR. Reversal of baldness in patient receiving minoxidil for hypertension. N Engl J Med. 1980;303(25):1480-1481."
+  },
+  {
+    "disease": "nicotine dependence",
+    "known_repurposed_drug": "bupropion",
+    "source_citation": "Hurt RD, Sachs DP, Glover ED, et al. A comparison of sustained-release bupropion and placebo for smoking cessation. N Engl J Med. 1997;337(17):1195-1202."
+  },
+  {
+    "disease": "COVID-19",
+    "known_repurposed_drug": "dexamethasone",
+    "source_citation": "RECOVERY Collaborative Group. Dexamethasone in hospitalized patients with Covid-19. N Engl J Med. 2021;384(8):693-704."
+  },
+  {
+    "disease": "alcohol use disorder",
+    "known_repurposed_drug": "naltrexone",
+    "source_citation": "O'Malley SS, Jaffe AJ, Chang G, et al. Naltrexone and coping skills therapy for alcohol dependence: a controlled study. Arch Gen Psychiatry. 1992;49(11):881-887."
+  },
+  {
+    "disease": "rheumatoid arthritis",
+    "known_repurposed_drug": "methotrexate",
+    "source_citation": "Weinblatt ME, Coblyn JS, Fox DA, et al. Efficacy of low-dose methotrexate in rheumatoid arthritis. N Engl J Med. 1985;312(13):818-822."
+  },
+  {
+    "disease": "onchocerciasis",
+    "known_repurposed_drug": "ivermectin",
+    "source_citation": "Campbell WC. Ivermectin as an antiparasitic agent for use in humans. Annu Rev Microbiol. 1991;45:445-474."
+  },
+  {
+    "disease": "COVID-19",
+    "known_repurposed_drug": "baricitinib",
+    "source_citation": "Marconi VC, Ramanan AV, de Bono S, et al. Efficacy and safety of baricitinib for the treatment of hospitalised adults with COVID-19 (COV-BARRIER): a randomised, double-blind, parallel-group, placebo-controlled phase 3 trial. Lancet Respir Med. 2021;9(12):1407-1418."
+  },
+  {
+    "disease": "idiopathic pulmonary fibrosis",
+    "known_repurposed_drug": "nintedanib",
+    "source_citation": "Richeldi L, du Bois RM, Raghu G, et al. Efficacy and safety of nintedanib in idiopathic pulmonary fibrosis. N Engl J Med. 2014;370(22):2071-2082."
+  },
+  {
+    "disease": "cutaneous T-cell lymphoma",
+    "known_repurposed_drug": "vorinostat",
+    "source_citation": "Duvic M, Talpur R, Ni X, et al. Phase 2 trial of oral vorinostat (suberoylanilide hydroxamic acid, SAHA) for refractory cutaneous T-cell lymphoma (CTCL). Blood. 2007;109(1):31-39."
+  },
+  {
+    "disease": "chronic migraine",
+    "known_repurposed_drug": "onabotulinumtoxinA",
+    "source_citation": "Diener HC, Dodick DW, Aurora SK, et al. OnabotulinumtoxinA for treatment of chronic migraine: results from the double-blind, randomized, placebo-controlled phase of the PREEMPT 2 trial. Cephalalgia. 2010;30(7):804-814."
+  },
+  {
+    "disease": "postpartum depression",
+    "known_repurposed_drug": "brexanolone",
+    "source_citation": "Meltzer-Brody S, Colquhoun H, Riesenberg R, et al. Brexanolone injection in post-partum depression: two multicentre, double-blind, randomised, placebo-controlled, phase 3 trials. Lancet. 2018;392(10152):1058-1070."
+  },
+  {
+    "disease": "gout",
+    "known_repurposed_drug": "canakinumab",
+    "source_citation": "Schlesinger N, Alten RE, Bardin T, et al. Canakinumab for acute gouty arthritis in patients with limited treatment options: results from two randomised, multicentre, active-controlled, double-blind trials and their initial extensions. Ann Rheum Dis. 2012;71(11):1839-1848."
+  },
+  {
+    "disease": "erectile dysfunction",
+    "known_repurposed_drug": "sildenafil",
+    "source_citation": "Boolell M, Allen MJ, Ballard SA, et al. Sildenafil: an orally active type 5 cyclic GMP-specific phosphodiesterase inhibitor for the treatment of penile erectile dysfunction. Int J Impot Res. 1996;8(2):47-52."
+  },
+  {
+    "disease": "leprosy",
+    "known_repurposed_drug": "thalidomide",
+    "source_citation": "Sheskin J. Thalidomide in the treatment of lepra reactions. Clin Pharmacol Ther. 1965;6(3):303-306."
+  }
+]

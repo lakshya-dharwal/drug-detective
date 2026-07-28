@@ -1,0 +1,39 @@
+# ---- Secrets (NEVER commit) -------------------------------------------------
+.env
+.env.local
+.env.*.local
+*/.env
+**/.env
+# keep the templates
+!.env.example
+!**/.env.example
+
+# ---- Python -----------------------------------------------------------------
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+**/.pytest_cache/
+
+# ---- Local caches / generated data (large, regenerated at runtime) ----------
+phase1/data/api_cache/
+phase1/data/entity_cache.json
+phase2/backend/data/
+benchmark_results.json
+**/benchmark_results.json
+
+# ---- Node / Next.js ---------------------------------------------------------
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- Misc -------------------------------------------------------------------
+*.log
+.DS_Store
+**/.DS_Store

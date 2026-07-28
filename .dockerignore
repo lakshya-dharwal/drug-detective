@@ -1,0 +1,26 @@
+# Keep the Docker build context small — exclude deps, caches, and secrets.
+# (Fly uploads this context on every deploy; without this it would be ~700MB.)
+
+**/.venv/
+**/node_modules/
+**/.next/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+
+# Local runtime caches (regenerated on the host)
+phase1/data/api_cache/
+phase1/data/entity_cache.json
+**/benchmark_results.json
+
+# Secrets never enter the image (keys are injected via `fly secrets`)
+**/.env
+**/.env.local
+
+# Frontend isn't part of the backend image
+phase2/frontend/
+
+# Misc
+**/*.log
+**/.DS_Store
+.git/
