@@ -43,3 +43,15 @@ class ResultResponse(BaseModel):
     cache_hit: bool = False
     result: Optional[dict[str, Any]] = None
     error: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    disease: str
+    question: str = Field(min_length=1, max_length=2000)
+    # Compact drug context built by the frontend from the search result.
+    drugs: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    disabled: bool = False

@@ -18,11 +18,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Request  # noqa: E402
+from fastapi.concurrency import run_in_threadpool  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import StreamingResponse  # noqa: E402
 
 from cache import get_cached_result, normalize_disease  # noqa: E402
-from models import JobStatus, ResultResponse, SearchRequest, SearchResponse  # noqa: E402
+from chat import answer_question  # noqa: E402
+from models import (  # noqa: E402
+    ChatRequest,
+    ChatResponse,
+    JobStatus,
+    ResultResponse,
+    SearchRequest,
+    SearchResponse,
+)
 from sse import create_job, event_stream, get_job, replay_cached_job, run_job  # noqa: E402
 import asyncio  # noqa: E402
 
@@ -102,6 +111,13 @@ async def stream_search(search_id: str, request: Request) -> StreamingResponse:
             "X-Accel-Buffering": "no",  # disable nginx/proxy buffering so events flush live
         },
     )
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(body: ChatRequest) -> ChatResponse:
+    """Grounded Q&A over one search's ranked results (display-only, never scores)."""
+    result = await run_in_threadpool(answer_question, body.disease, body.question, body.drugs)
+    return ChatResponse(answer=result["answer"], disabled=bool(result.get("disabled")))
 
 
 @app.get("/api/search/{search_id}/result", response_model=ResultResponse)
