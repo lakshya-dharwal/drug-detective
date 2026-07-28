@@ -16,7 +16,8 @@ import Wordmark from "@/components/Wordmark";
 import DnaMotif from "@/components/DnaMotif";
 import ThemeToggle from "@/components/ThemeToggle";
 import TrialFilter, { FILTERS, matchesFilter, type TrialFilterValue } from "@/components/TrialFilter";
-import type { PipelineResult } from "@/lib/api";
+import ChatBox from "@/components/ChatBox";
+import { resultsToCsv, type PipelineResult } from "@/lib/api";
 
 type View = "progress" | "results" | "failed";
 
@@ -101,6 +102,18 @@ function Results({ result }: { result: PipelineResult }) {
 
   const visible = useMemo(() => candidates.filter((r) => matchesFilter(r, filter)), [candidates, filter]);
 
+  const diseaseName = result.disease_resolved?.name ?? result.disease_query;
+  function downloadCsv() {
+    const csv = resultsToCsv(diseaseName, candidates);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `drug-detective-${diseaseName.replace(/\s+/g, "-").toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Empty-but-successful case (e.g. no gene associations) — styled as intentional.
   if (candidates.length === 0) {
     return (
@@ -119,10 +132,18 @@ function Results({ result }: { result: PipelineResult }) {
   return (
     <div className="animate-fade-up">
       <div className="mb-4 space-y-3">
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          <span className="font-semibold text-neutral-900 dark:text-neutral-100">{candidates.length}</span>{" "}
-          ranked candidates · {result.gene_count} associated genes
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{candidates.length}</span>{" "}
+            ranked candidates · {result.gene_count} associated genes
+          </p>
+          <button
+            onClick={downloadCsv}
+            className="shrink-0 rounded-full border border-neutral-300 px-3 py-1 text-xs text-neutral-600 transition hover:border-accent hover:text-accent dark:border-neutral-700 dark:text-neutral-300"
+          >
+            ↓ Export CSV
+          </button>
+        </div>
         <TrialFilter value={filter} onChange={setFilter} counts={counts} />
       </div>
 
@@ -173,6 +194,8 @@ function Results({ result }: { result: PipelineResult }) {
           </ul>
         </details>
       )}
+
+      <ChatBox result={result} />
     </div>
   );
 }

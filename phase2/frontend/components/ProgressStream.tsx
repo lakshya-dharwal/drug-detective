@@ -50,7 +50,14 @@ export default function ProgressStream({
     Object.fromEntries(STAGES.map((s) => [s.key, "pending"]))
   );
   const [labels, setLabels] = useState<Record<string, string | null>>({});
+  const [elapsed, setElapsed] = useState(0);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Honest elapsed-time counter (no fake progress; just shows work is ongoing).
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let done = false;
@@ -157,6 +164,16 @@ export default function ProgressStream({
           );
         })}
       </ol>
+
+      <div className="mt-4 px-4 text-xs text-neutral-400 dark:text-neutral-500">
+        <span className="tabular-nums">{elapsed}s elapsed</span>
+        {elapsed >= 15 && (
+          <p className="mt-1 leading-relaxed">
+            New diseases can take a minute or two — we&apos;re pulling live data from Open Targets,
+            PubMed, openFDA and ClinicalTrials.gov. Previously searched diseases return in seconds.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

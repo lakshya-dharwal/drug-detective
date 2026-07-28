@@ -3,9 +3,23 @@ import "./globals.css";
 import Disclaimer from "@/components/Disclaimer";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://drug-detective.vercel.app"),
   title: "Drug Detective",
   description:
     "Drug repurposing research tool — ranked candidate drugs for a disease, with evidence breakdowns and source citations. For research only.",
+  openGraph: {
+    title: "Drug Detective",
+    description:
+      "Find drug repurposing candidates for any disease — ranked, with real evidence from PubMed, openFDA and ClinicalTrials.gov.",
+    type: "website",
+    url: "https://drug-detective.vercel.app",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Drug Detective",
+    description:
+      "Find drug repurposing candidates for any disease — ranked, source-cited evidence.",
+  },
 };
 
 // Runs before paint to apply the persisted theme (or OS preference), so there is

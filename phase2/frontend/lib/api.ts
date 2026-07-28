@@ -147,3 +147,79 @@ export async function fetchResult(searchId: string): Promise<ResultResponse> {
 export function streamUrl(searchId: string): string {
   return `${API_BASE}/api/search/${searchId}/stream`;
 }
+
+export interface ChatResponse {
+  answer: string;
+  disabled: boolean;
+}
+
+/** Grounded Q&A over a search's results. `drugs` is a compact context array. */
+export async function askChat(
+  disease: string,
+  question: string,
+  drugs: Record<string, unknown>[]
+): Promise<ChatResponse> {
+  const res = await fetch(`${API_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ disease, question, drugs }),
+  });
+  if (!res.ok) throw new Error(`Chat failed (${res.status})`);
+  return res.json();
+}
+
+/** Build a compact, token-friendly context for the chat from ranked results. */
+export function toChatContext(candidates: RankResult[], limit = 15): Record<string, unknown>[] {
+  return candidates.slice(0, limit).map((c, i) => ({
+    rank: i + 1,
+    drug: c.drug_name,
+    score: c.final_score,
+    target: c.target_hgnc_symbol,
+    phase: c.max_clinical_phase,
+    mechanism: c.mechanism_of_action,
+    papers: c.literature?.total_papers ?? null,
+    recent_papers: c.literature?.recent_papers ?? null,
+    boxed_warning: c.safety?.has_boxed_warning ?? null,
+    trials: c.trials?.trial_count ?? null,
+    reason: c.explanation,
+  }));
+}
+
+/** Client-side CSV export of the ranked results. */
+export function resultsToCsv(disease: string, candidates: RankResult[]): string {
+  const header = [
+    "rank",
+    "drug_name",
+    "chembl_id",
+    "final_score",
+    "target",
+    "max_clinical_phase",
+    "total_papers",
+    "recent_papers",
+    "boxed_warning",
+    "trial_count",
+    "mechanism_of_action",
+  ];
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = candidates.map((c, i) =>
+    [
+      i + 1,
+      c.drug_name,
+      c.drug_chembl_id,
+      c.final_score,
+      c.target_hgnc_symbol,
+      c.max_clinical_phase,
+      c.literature?.total_papers ?? "",
+      c.literature?.recent_papers ?? "",
+      c.safety?.has_boxed_warning ?? "",
+      c.trials?.trial_count ?? "",
+      c.mechanism_of_action ?? "",
+    ]
+      .map(esc)
+      .join(",")
+  );
+  return [`# Drug Detective results for: ${disease}`, header.join(","), ...rows].join("\n");
+}
