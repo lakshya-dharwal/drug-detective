@@ -41,14 +41,19 @@ logger = logging.getLogger("drug_detective.api")
 app = FastAPI(title="Drug Detective API", version="2.0.0")
 
 # --- CORS --------------------------------------------------------------------
-# Explicit allowlist. Set ALLOWED_ORIGINS as a comma-separated list in prod
-# (e.g. "https://drug-detective.vercel.app"). Localhost is included for dev.
+# Explicit allowlist (localhost + any set via ALLOWED_ORIGINS), PLUS a regex that
+# matches every Vercel URL for this project. Vercel mints a new hostname per
+# deployment (drug-detective-<hash>-<org>.vercel.app), so a static list can't
+# keep up — the regex lets all of them (production, preview, per-deploy) through.
 _default_origins = "http://localhost:3000,http://127.0.0.1:3000"
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
+# e.g. https://drug-detective.vercel.app, https://drug-detective-ahhwg4roi-...vercel.app
+ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"https://drug-detective[a-z0-9-]*\.vercel\.app")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
