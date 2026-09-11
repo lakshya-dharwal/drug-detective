@@ -12,3 +12,6 @@ pydantic>=2.6.0
 
 # Phase 3: display-only LLM summaries (optional at runtime — only used if OPENAI_API_KEY is set)
 openai>=1.30.0
+
+# Dev only: fast local tests for the agent loop (not needed at runtime)
+pytest>=8.0.0

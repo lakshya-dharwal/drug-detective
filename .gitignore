@@ -37,3 +37,7 @@ next-env.d.ts
 *.log
 .DS_Store
 **/.DS_Store
+
+# ---- Agent loop local memory / Supabase CLI temp ----------------------------
+phase2/backend/data/agent_experience.jsonl
+supabase/.temp/
