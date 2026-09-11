@@ -148,7 +148,7 @@ export default function AgentInvestigation({ searchId }: { searchId: string }) {
   const diff = data?.strategy_diff;
 
   return (
-    <div className="mt-8 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="mb-5 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
           Self-Improving Investigation

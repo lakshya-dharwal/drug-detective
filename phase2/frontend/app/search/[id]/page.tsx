@@ -132,6 +132,11 @@ function Results({ result, searchId }: { result: PipelineResult; searchId: strin
 
   return (
     <div className="animate-fade-up">
+      {/* The agent loop leads: with ~60+ ranked candidates below, burying this
+          under the list meant nobody scrolled to it. Collapsed it is just a
+          header and a button, so it costs the results almost no vertical space. */}
+      <AgentInvestigation searchId={searchId} />
+
       <div className="mb-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
@@ -195,8 +200,6 @@ function Results({ result, searchId }: { result: PipelineResult; searchId: strin
           </ul>
         </details>
       )}
-
-      <AgentInvestigation searchId={searchId} />
 
       <ChatBox result={result} />
     </div>
