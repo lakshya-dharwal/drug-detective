@@ -14,13 +14,18 @@ flags). Sponsor-backed live retrieval slots in later behind the same interface.
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any, Optional
 
 from agent import one_client, sandbox as daytona_sandbox, youcom
 from agent.crew import narrate_round
-from agent.experience import Experience, load_experiences, record_experiences
+from agent.experience import (
+    Experience,
+    latest_run,
+    load_experiences,
+    record_experiences,
+)
 from agent.strategy import (
-    Learning,
     Strategy,
     default_strategy,
     next_strategy,
@@ -233,6 +238,7 @@ def run_round(
     strategy: Optional[Strategy] = None,
     search_id: Optional[str] = None,
     persist: bool = True,
+    run_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """Run one investigation round over an existing search result.
 
@@ -291,6 +297,7 @@ def run_round(
                 what_worked=f["what_worked"],
                 what_failed=f["what_failed"],
                 search_id=search_id,
+                run_id=run_id,
             )
             for f in findings
         ])
@@ -324,73 +331,117 @@ def run_investigation(
     persist: bool = True,
     publish: bool = True,
 ) -> dict[str, Any]:
-    """Run round 1, learn from it, then run an adapted round 2.
+    """Run `rounds` investigation rounds, adapting the strategy between each.
 
-    Round 2's strategy comes from `next_strategy` reading round 1's persisted
-    experiences — the loop genuinely closes through the memory layer rather than
-    passing state directly in-process.
+    Two things make this a closed loop rather than a two-step script:
+
+    1. Each round's strategy is derived by reading the PREVIOUS round's
+       experiences back out of storage, not by passing state in process.
+    2. Round 1 is not hardcoded to the default strategy. If this disease has
+       been investigated before, the agent recalls that run and starts from an
+       already-adapted strategy — so a second investigation genuinely begins
+       smarter than the first.
     """
-    round_1 = run_round(
-        search_result, disease, 1,
-        strategy=default_strategy(1), search_id=search_id, persist=persist,
-    )
-    strat_1 = default_strategy(1)
+    rounds = max(2, int(rounds))
+    run_id = uuid.uuid4().hex
 
-    if persist:
-        history = load_experiences(disease=disease, search_id=search_id, round_number=1)
-    else:
-        # Reconstruct in-memory so a non-persisting caller still exercises the loop.
-        history = [
-            Experience(
-                disease=disease,
-                candidate_drug=f["drug_name"],
-                round_number=1,
-                strategy_used=strat_1.to_dict(),
-                evidence_summary=f["evidence_breakdown"],
-                confidence=f["investigation_confidence"],
-                outcome=f["outcome"],
-                what_worked=f["what_worked"],
-                what_failed=f["what_failed"],
-                search_id=search_id,
-            )
-            for f in round_1["findings"]
-        ]
-
-    strat_2, learning = next_strategy(history, strat_1)
-    round_2 = run_round(
-        search_result, disease, 2,
-        strategy=strat_2, search_id=search_id, persist=persist,
-    )
-
-    learning_payload = learning.to_dict()
-    diff = strategy_diff(strat_1, strat_2)
-
-    # CrewAI narrates the (already-decided) adaptation for a human reader.
-    crew_narrative = narrate_round(disease, round_1, round_2, learning_payload, diff)
-    if crew_narrative:
-        learning_payload = {
-            **learning_payload,
-            "crew": crew_narrative,
-            "deterministic_what_i_learned": learning.what_i_learned,
-            "deterministic_what_i_am_changing": learning.what_i_am_changing,
-            "what_i_learned": crew_narrative["what_i_learned"],
-            "what_i_am_changing": crew_narrative["what_i_am_changing"],
+    # --- Recall prior investigations of this disease -------------------------
+    prior = latest_run(load_experiences(disease=disease)) if persist else []
+    if prior:
+        # Restore the strategy that run ended on, so exclusions and lever
+        # positions carry forward instead of resetting to the defaults.
+        prior_strategy = Strategy.from_dict(prior[0].strategy_used or {})
+        strategy, recall_learning = next_strategy(prior, prior_strategy)
+        strategy.round_number = 1
+        prior_context = {
+            "recalled": True,
+            "prior_rounds_recalled": len(prior),
+            "carried_exclusions": list(strategy.excluded_drugs),
+            "what_i_recalled": recall_learning.what_i_learned,
+            "starting_adjustment": recall_learning.what_i_am_changing,
         }
+    else:
+        strategy = default_strategy(1)
+        prior_context = {"recalled": False, "prior_rounds_recalled": 0, "carried_exclusions": []}
+
+    # --- Run the rounds ------------------------------------------------------
+    round_payloads: list[dict[str, Any]] = []
+    learnings: list[dict[str, str]] = []
+    diffs: list[dict[str, Any]] = []
+
+    for n in range(1, rounds + 1):
+        payload = run_round(
+            search_result, disease, n,
+            strategy=strategy, search_id=search_id, persist=persist, run_id=run_id,
+        )
+        round_payloads.append(payload)
+
+        if n == rounds:
+            break  # nothing to adapt into
+
+        # Close the loop through storage: re-read what this round just recorded.
+        if persist:
+            history = load_experiences(
+                disease=disease, search_id=search_id, run_id=run_id, round_number=n
+            )
+        else:
+            history = [
+                Experience(
+                    disease=disease,
+                    candidate_drug=f["drug_name"],
+                    round_number=n,
+                    strategy_used=strategy.to_dict(),
+                    evidence_summary=f["evidence_breakdown"],
+                    confidence=f["investigation_confidence"],
+                    outcome=f["outcome"],
+                    what_worked=f["what_worked"],
+                    what_failed=f["what_failed"],
+                    search_id=search_id,
+                    run_id=run_id,
+                )
+                for f in payload["findings"]
+            ]
+
+        previous_strategy = strategy
+        strategy, learning = next_strategy(history, previous_strategy)
+        learnings.append(learning.to_dict())
+        diffs.append(strategy_diff(previous_strategy, strategy))
+
+    first, last = round_payloads[0], round_payloads[-1]
+    learning_payload = dict(learnings[0]) if learnings else {
+        "what_i_learned": "", "what_i_am_changing": "",
+    }
+    diff = diffs[0] if diffs else {"changed_lever": None, "rationale": "", "changes": {}}
+
+    # --- CrewAI narration ----------------------------------------------------
+    # Supplementary ONLY. It is deliberately not allowed to overwrite
+    # what_i_learned / what_i_am_changing: the LLM occasionally describes a
+    # different change than the one the engine actually made, and the displayed
+    # decision must always be the deterministic one.
+    crew_narrative = narrate_round(disease, first, last, learning_payload, diff)
+    if crew_narrative:
+        learning_payload["crew"] = crew_narrative
 
     investigation = {
         "disease": disease,
         "search_id": search_id,
-        "rounds_run": rounds,
-        "round_1": round_1,
+        "run_id": run_id,
+        "rounds_run": len(round_payloads),
+        "prior_experience": prior_context,
+        "rounds": round_payloads,
+        "learnings": learnings,
+        "strategy_diffs": diffs,
+        # Stable aliases for the first/last round, which the UI renders.
+        "round_1": first,
+        "round_2": last,
         "learning": learning_payload,
-        "round_2": round_2,
         "strategy_diff": diff,
         "improvement": {
-            "mean_confidence_round_1": round_1["mean_confidence"],
-            "mean_confidence_round_2": round_2["mean_confidence"],
-            "delta": round(round_2["mean_confidence"] - round_1["mean_confidence"], 3),
-            "promising_round_1": round_1["promising_count"],
-            "promising_round_2": round_2["promising_count"],
+            "mean_confidence_round_1": first["mean_confidence"],
+            "mean_confidence_round_2": last["mean_confidence"],
+            "delta": round(last["mean_confidence"] - first["mean_confidence"], 3),
+            "promising_round_1": first["promising_count"],
+            "promising_round_2": last["promising_count"],
         },
     }
 

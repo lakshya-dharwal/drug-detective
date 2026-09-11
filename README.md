@@ -42,8 +42,13 @@ Completed search (64 ranked candidates)
   ONE → writes the outcome into the user's real Notion workspace
 ```
 
-Round 2's strategy is derived **by reading the memory file back**, not by passing state in
-process. The loop really closes.
+Two things make this a loop rather than a two-step script:
+
+1. Each round's strategy is derived by **reading the previous round's experiences back out of
+   storage** — not by passing state in process.
+2. **Round 1 is not hardcoded to the default strategy.** If this disease has been investigated
+   before, the agent recalls that run and starts from an already-adapted strategy. Investigate the
+   same disease twice and the second attempt genuinely begins smarter.
 
 ## The line we don't cross
 
@@ -77,35 +82,40 @@ integrations actually ran.
 
 ## A real run
 
-Live, ALS, ~20 seconds, nothing mocked:
+Live, ALS, nothing mocked. **Two investigations of the same disease**, back to back:
 
 ```
-ROUND 1   top_ranked · drug_disease framing · You.com 15 items · Daytona sandbox 7a2cc4d7
-  TOFERSEN          conf 0.997  promising   screen 0.55 supported
-  DEXTROMETHORPHAN  conf 0.755  promising   screen 0.39 weak
-  CARBETAPENTANE    conf 0.100  weak        gaps: literature absent, trials absent
+INVESTIGATION 1 — no prior memory
+  R1  TOFERSEN · DEXTROMETHORPHAN · CARBETAPENTANE      mean 0.617
+      └ CARBETAPENTANE weak: no literature, no trials
+  LEVER  candidate_selection:  top_ranked → skip_unproductive
+  R2  TOFERSEN · DEXTROMETHORPHAN · DACOMITINIB         mean 0.617   delta 0.000
 
-WHAT I LEARNED     1 of 3 candidates produced weak or inconclusive evidence.
-WHAT I'M CHANGING  Deprioritize CARBETAPENTANE, investigate the next-ranked candidate.
-                   Evidence sources and framing stay fixed, so any change in
-                   confidence is attributable to the candidate switch.
-
-LEVER  candidate_selection:  top_ranked → skip_unproductive
-                             excluded:  [] → [CARBETAPENTANE]
-
-ROUND 2   skip_unproductive · excluded CARBETAPENTANE
-  TOFERSEN          conf 0.997  promising
-  DEXTROMETHORPHAN  conf 0.755  promising
-  DACOMITINIB       conf 0.100  weak
-
-DELTA  0.000 — no confidence change
-→ Logged to Notion ↗
+INVESTIGATION 2 — recalls investigation 1
+  RECALLED  already ruled out: CARBETAPENTANE, DACOMITINIB
+  R1  TOFERSEN · DEXTROMETHORPHAN · PENTAZOCINE         mean 0.625   ← starts higher
+  R2  TOFERSEN · DEXTROMETHORPHAN · AFATINIB            mean 0.651   ← ends higher
 ```
 
-**We are not dressing that up.** The agent correctly abandoned a dead end; the next-ranked
-replacement happened to be weak too, so the mean didn't move. The UI shows `No confidence change`
-in neutral grey. A demo that always shows improvement isn't demonstrating learning, it's
-demonstrating a hardcoded string. `run_investigation(rounds=N)` keeps walking down the list.
+**Investigation 1 ends flat, and we show it that way.** The agent correctly abandoned a dead end;
+the next-ranked replacement happened to be weak too, so the mean didn't move. The UI renders
+`No confidence change` in neutral grey. A demo that always improves isn't demonstrating learning,
+it's demonstrating a hardcoded string.
+
+The improvement shows up where it should — **across** investigations, as memory accumulates and
+the agent stops re-investigating known dead ends.
+
+On glioblastoma the same engine picks a *different* lever. All three candidates held up, so
+instead of swapping candidates it reframed the question:
+
+```
+LEVER  query_formulation:  drug_disease → mechanism_pathway
+  R1  AFATINIB 0.927 · ERLOTINIB 0.788 · DEPATUXIZUMAB 0.748   mean 0.821
+  R2  AFATINIB 1.000 · ERLOTINIB 0.910 · DEPATUXIZUMAB 0.810   mean 0.907   delta +0.086
+```
+
+Same code, different failure mode, different adaptation.
+
 
 ## Architecture
 
@@ -172,11 +182,12 @@ pipeline never re-runs.
 ## Run it
 
 ```bash
-# Backend — needs Python ≤3.12 (crewai's tiktoken has no 3.14 wheel)
+# Backend — Python 3.11 or 3.12 (crewai's tiktoken has no 3.13/3.14 wheel yet)
 cd phase2/backend
-python3.12 -m venv .venv312 && ./.venv312/bin/pip install -r requirements.txt
+python3.12 -m venv .venv
+./.venv/bin/pip install -r requirements.txt          # or requirements.lock.txt for exact versions
 cp .env.example .env        # add your keys
-ENABLE_CREWAI=1 ./.venv312/bin/python -m uvicorn main:app --port 8000
+ENABLE_CREWAI=1 ./.venv/bin/python -m uvicorn main:app --port 8000
 
 # Frontend
 cd phase2/frontend && npm install && npm run dev
@@ -190,11 +201,36 @@ you just lose live retrieval, sandboxed screening, narration and the Notion writ
 ## Tests
 
 ```bash
-cd phase2/backend && ./.venv312/bin/python -m pytest tests/ -q     # 15 passed in 0.06s
+cd phase2/backend && ./.venv/bin/python -m pytest tests/ -q      # 25 passed in 0.06s
 ```
 
-Covers persistence, the default round-1 strategy, each adaptation lever, **the one-lever-per-round
-invariant**, determinism, and full round orchestration. No network.
+Covers persistence and run isolation, the default round-1 strategy, each adaptation lever, **the
+one-lever-per-round invariant**, determinism, N-round orchestration, **cross-investigation recall**,
+and the guarantee that **CrewAI cannot overwrite the deterministic decision**. No network.
+
+## What this is not
+
+Stated plainly, because a prototype that oversells itself is worth less than one that doesn't.
+
+- **The adaptation space is small.** Three levers, one moved per round, chosen by a fixed priority
+  ladder. That is deliberate — it is what makes the change attributable — but it is a rule-based
+  policy, not a learned one. No model is trained, fine-tuned or rewarded here.
+- **`query_formulation` alternates.** With only two framings, a run that keeps reaching lever 3
+  toggles between them rather than converging. Fine for two rounds; it would need more framings, or
+  a convergence check, to run long.
+- **`investigation_confidence` is a heuristic, not a validated metric.** The weights are reasonable
+  and deterministic, but they are not calibrated against any benchmark of real repurposing outcomes.
+  Treat it as a triage signal for where to look next, never as a probability of success.
+- **Memory is a local JSONL file**, keyed by disease. It is durable and it survives restarts, but
+  it is single-node. The interface is narrow (`record` / `load` / `clear`) precisely so a Supabase
+  table can replace it without touching a caller.
+- **Live retrieval is as good as the web.** You.com returns pages, and the sandbox screens them
+  with keyword heuristics. It catches an obvious "trial terminated"; it will not catch a subtly
+  negative result phrased carefully.
+- **Not deployed.** It runs locally. The Dockerfile and `fly.toml` are there and the Docker image
+  targets Python 3.11, but the backend has not been shipped.
+
+**It is a research-support prototype.** Outputs are hypotheses for a human to investigate.
 
 ---
 

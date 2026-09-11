@@ -45,6 +45,9 @@ class Experience:
     what_worked: list[str] = field(default_factory=list)
     what_failed: list[str] = field(default_factory=list)
     search_id: Optional[str] = None
+    # Groups every round of ONE investigation. Without it, round-2 records from
+    # separate runs share a round_number and get read back as a single round.
+    run_id: Optional[str] = None
     timestamp: str = ""
 
     def __post_init__(self) -> None:
@@ -76,6 +79,7 @@ def load_experiences(
     disease: Optional[str] = None,
     search_id: Optional[str] = None,
     round_number: Optional[int] = None,
+    run_id: Optional[str] = None,
 ) -> list[Experience]:
     """Read back experiences, oldest first, filtered by whatever is supplied.
 
@@ -103,6 +107,8 @@ def load_experiences(
                     continue
                 if round_number is not None and row.get("round_number") != round_number:
                     continue
+                if run_id is not None and row.get("run_id") != run_id:
+                    continue
                 try:
                     out.append(Experience(**row))
                 except TypeError:
@@ -112,6 +118,27 @@ def load_experiences(
         logger.warning("Could not read experience store: %s", exc)
         return []
     return out
+
+
+def latest_run(experiences: list[Experience]) -> list[Experience]:
+    """Return only the most recent investigation's records, highest round first.
+
+    Experiences from different runs interleave in the log and reuse round
+    numbers, so a naive "highest round_number" read mixes them. Grouping by
+    run_id and taking the newest group is what makes a prior run readable as a
+    single coherent memory.
+    """
+    if not experiences:
+        return []
+
+    by_run: dict[Optional[str], list[Experience]] = {}
+    for exp in experiences:
+        by_run.setdefault(exp.run_id, []).append(exp)
+
+    # Newest run = the one containing the latest timestamp.
+    newest = max(by_run.values(), key=lambda rows: max(r.timestamp for r in rows))
+    top_round = max(r.round_number for r in newest)
+    return [r for r in newest if r.round_number == top_round]
 
 
 def clear_experiences() -> None:

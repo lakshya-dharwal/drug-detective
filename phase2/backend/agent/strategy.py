@@ -54,6 +54,25 @@ class Strategy:
     changed_lever: Optional[str] = None          # which single lever moved vs last round
     rationale: str = ""                          # why it moved
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Strategy":
+        """Rebuild a strategy from what an Experience recorded.
+
+        Recall needs the full lever state, not just past outcomes: an agent that
+        remembers a candidate failed but forgets it had already excluded it will
+        re-investigate the same dead end.
+        """
+        return cls(
+            round_number=int(data.get("round_number", 1)),
+            candidate_selection=data.get("candidate_selection", "top_ranked"),
+            candidate_count=int(data.get("candidate_count", DEFAULT_CANDIDATE_COUNT)),
+            excluded_drugs=list(data.get("excluded_drugs") or []),
+            evidence_priority=list(data.get("evidence_priority") or DEFAULT_EVIDENCE_PRIORITY),
+            query_formulation=data.get("query_formulation", DEFAULT_QUERY_FORMULATION),
+            changed_lever=data.get("changed_lever"),
+            rationale=data.get("rationale", ""),
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "round_number": self.round_number,

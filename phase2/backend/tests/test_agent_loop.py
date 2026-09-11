@@ -296,3 +296,137 @@ def test_round_2_reads_memory_rather_than_in_process_state():
     assert strat.changed_lever == "candidate_selection"
     assert set(strat.excluded_drugs) == {"W0", "W1", "W2"}
     assert learning.what_i_am_changing
+
+
+# --------------------------------------------------------------------------
+# 5. Run isolation — separate investigations must not bleed together
+# --------------------------------------------------------------------------
+def test_latest_run_isolates_the_most_recent_investigation():
+    """Two runs reuse round numbers; memory must read back only the newer one."""
+    from agent.experience import latest_run
+
+    old = [make_experience("OLD_A", "weak", round_number=2)]
+    old[0].run_id = "run-1"
+    old[0].timestamp = "2026-01-01T00:00:00+00:00"
+    new = [make_experience("NEW_A", "weak", round_number=2)]
+    new[0].run_id = "run-2"
+    new[0].timestamp = "2026-06-01T00:00:00+00:00"
+
+    picked = latest_run(old + new)
+    assert [e.candidate_drug for e in picked] == ["NEW_A"]
+
+
+def test_load_experiences_filters_by_run_id():
+    a = make_experience("A", "weak")
+    a.run_id = "run-1"
+    b = make_experience("B", "weak")
+    b.run_id = "run-2"
+    record_experience(a)
+    record_experience(b)
+
+    assert [e.candidate_drug for e in load_experiences(run_id="run-1")] == ["A"]
+    assert [e.candidate_drug for e in load_experiences(run_id="run-2")] == ["B"]
+
+
+def test_rounds_from_one_investigation_share_a_run_id():
+    result = {"ranked_candidates": [strong_candidate(n) for n in ("A", "B", "C", "D", "E", "F")]}
+    run_investigation(result, "test disease", search_id="s1", publish=False)
+
+    stored = load_experiences(disease="test disease")
+    run_ids = {e.run_id for e in stored}
+    assert len(run_ids) == 1 and None not in run_ids
+
+
+# --------------------------------------------------------------------------
+# 6. Cross-session recall — a second investigation starts smarter
+# --------------------------------------------------------------------------
+def test_second_investigation_recalls_the_first_and_starts_adapted():
+    """The headline claim: investigate the same disease twice, get smarter."""
+    result = {
+        "ranked_candidates": [
+            weak_candidate("WEAK_1", score=90.0),
+            weak_candidate("WEAK_2", score=89.0),
+            weak_candidate("WEAK_3", score=88.0),
+            strong_candidate("STRONG_1", score=70.0),
+            strong_candidate("STRONG_2", score=69.0),
+            strong_candidate("STRONG_3", score=68.0),
+        ]
+    }
+
+    first = run_investigation(result, "test disease", search_id="s1", publish=False)
+    assert first["prior_experience"]["recalled"] is False
+    assert first["round_1"]["candidates_investigated"] == ["WEAK_1", "WEAK_2", "WEAK_3"]
+
+    second = run_investigation(result, "test disease", search_id="s2", publish=False)
+    # It remembered, and did NOT waste round 1 on the known dead ends.
+    assert second["prior_experience"]["recalled"] is True
+    assert second["prior_experience"]["prior_rounds_recalled"] > 0
+    assert second["round_1"]["candidates_investigated"] != first["round_1"]["candidates_investigated"]
+    assert "WEAK_1" not in second["round_1"]["candidates_investigated"]
+    # Starting smarter shows up as a better opening round.
+    assert second["round_1"]["mean_confidence"] > first["round_1"]["mean_confidence"]
+
+
+def test_first_investigation_of_an_unseen_disease_uses_the_default():
+    result = {"ranked_candidates": [strong_candidate(n) for n in ("A", "B", "C")]}
+    out = run_investigation(result, "never seen before", search_id="s1", publish=False)
+    assert out["prior_experience"]["recalled"] is False
+    assert out["round_1"]["strategy"]["candidate_selection"] == "top_ranked"
+
+
+# --------------------------------------------------------------------------
+# 7. N rounds
+# --------------------------------------------------------------------------
+def test_rounds_parameter_is_actually_honoured():
+    result = {"ranked_candidates": [weak_candidate(f"W{i}") for i in range(12)]}
+    out = run_investigation(result, "test disease", search_id="s1", rounds=4, publish=False)
+
+    assert out["rounds_run"] == 4
+    assert len(out["rounds"]) == 4
+    assert [r["round_number"] for r in out["rounds"]] == [1, 2, 3, 4]
+    # Each round abandons more dead ends than the last.
+    exclusions = [len(r["strategy"]["excluded_drugs"]) for r in out["rounds"]]
+    assert exclusions == sorted(exclusions) and exclusions[-1] > exclusions[0]
+
+
+def test_round_aliases_point_at_first_and_last_round():
+    result = {"ranked_candidates": [weak_candidate(f"W{i}") for i in range(12)]}
+    out = run_investigation(result, "test disease", search_id="s1", rounds=3, publish=False)
+    assert out["round_1"] is out["rounds"][0]
+    assert out["round_2"] is out["rounds"][-1]
+    assert out["improvement"]["mean_confidence_round_2"] == out["rounds"][-1]["mean_confidence"]
+
+
+def test_rounds_below_two_are_clamped():
+    result = {"ranked_candidates": [strong_candidate(n) for n in ("A", "B", "C")]}
+    out = run_investigation(result, "test disease", rounds=1, publish=False)
+    assert out["rounds_run"] == 2  # a loop needs at least one adaptation
+
+
+# --------------------------------------------------------------------------
+# 8. The LLM must never overwrite the deterministic decision
+# --------------------------------------------------------------------------
+def test_crew_narration_cannot_replace_the_deterministic_learning(monkeypatch):
+    import agent.rounds as rounds_mod
+
+    monkeypatch.setattr(
+        rounds_mod, "narrate_round",
+        lambda *a, **k: {
+            "orchestrated_by": "crewai",
+            "agents": ["a", "b", "c"],
+            "narrative_learned": "TOTALLY DIFFERENT CLAIM",
+            "narrative_changing": "A CHANGE THAT NEVER HAPPENED",
+        },
+    )
+    result = {"ranked_candidates": [weak_candidate(f"W{i}") for i in range(6)]}
+    out = run_investigation(result, "test disease", publish=False)
+
+    assert out["learning"]["what_i_learned"] != "TOTALLY DIFFERENT CLAIM"
+    assert out["learning"]["what_i_am_changing"] != "A CHANGE THAT NEVER HAPPENED"
+    assert out["learning"]["crew"]["narrative_learned"] == "TOTALLY DIFFERENT CLAIM"
+
+
+def test_publishing_can_be_disabled_without_touching_the_network():
+    result = {"ranked_candidates": [strong_candidate(n) for n in ("A", "B", "C")]}
+    out = run_investigation(result, "test disease", publish=False)
+    assert out["published"]["published"] is False

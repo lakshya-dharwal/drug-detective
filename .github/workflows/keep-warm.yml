@@ -1,0 +1,19 @@
+name: keep-backend-warm
+
+# Pings the Fly.io backend on a schedule so the machine doesn't cold-start
+# between visits. Free (GitHub Actions), no always-on Fly cost.
+# Note: GitHub cron can be delayed under load; ~10 min is best-effort.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {} # allow manual runs
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          echo "Pinging backend to keep it warm..."
+          curl -sS --max-time 60 https://drug-detective-api.fly.dev/api/health || true

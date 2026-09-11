@@ -24,6 +24,21 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+# Ordinary prose that would otherwise look like an unrecognised drug name.
+_COMMON_WORDS = {
+    "EVIDENCE", "CANDIDATE", "CANDIDATES", "CONFIDENCE", "INVESTIGATION", "STRATEGY",
+    "REPURPOSING", "MECHANISM", "PATHWAY", "LITERATURE", "CLINICAL", "SUPPORTING",
+    "PROMISING", "INCONCLUSIVE", "DEPRIORITIZE", "DEPRIORITIZED", "PRIORITIZE",
+    "INVESTIGATED", "INVESTIGATE", "RETRIEVED", "SIGNALS", "SIGNAL", "BECAUSE",
+    "THEREFORE", "HOWEVER", "ALTHOUGH", "SUGGESTS", "INDICATES", "REMAINS",
+    "FURTHER", "ANOTHER", "NEXT-RANKED", "SELECTION", "FORMULATION", "PRIORITY",
+    "SCLEROSIS", "AMYOTROPHIC", "LATERAL", "GLIOBLASTOMA", "DISEASE", "RESULTS",
+    "ROUNDED", "TOWARDS", "SHIFTED", "PRIMARY", "ROBUST", "MODERATE", "EXHIBIT",
+    "DISPLAYS", "EVALUATION", "REVEALED", "LEVELS", "SUPPORTIVE", "LANDSCAPE",
+    "HIGHER", "STRONG", "WEAKER", "SOURCES", "SCREENING", "CONSEQUENTLY", "FOCUS",
+}
+
+
 def is_enabled() -> bool:
     return os.getenv("ENABLE_CREWAI", "0") == "1" and bool(os.getenv("OPENAI_API_KEY"))
 
@@ -127,13 +142,34 @@ def narrate_round(
             elif s.upper().startswith("CHANGED:"):
                 changed = s.split(":", 1)[1].strip()
 
+        # Guard against the narration describing a change the engine did not
+        # make. Any drug named that was not actually investigated is a sign the
+        # model drifted, so the narrative is marked untrusted rather than shown
+        # as if it were the decision.
+        investigated = {
+            f["drug_name"].upper()
+            for r in (round_1, round_2)
+            for f in r.get("findings", [])
+        }
+        blob = f"{learned or ''} {changed or ''}".upper()
+        hallucinated = sorted(
+            {w.strip(".,;:()") for w in blob.split() if w.strip(".,;:()").isalpha()
+             and len(w.strip(".,;:()")) > 6}
+            - investigated
+            - _COMMON_WORDS
+        )
+
         return {
             "orchestrated_by": "crewai",
             "agents": ["Biomedical Research Agent", "Evidence Assessment Agent", "Strategy Critic"],
             "evidence_assessment": str(t2.output) if t2.output else None,
-            "what_i_learned": learned or learning.get("what_i_learned"),
-            "what_i_am_changing": changed or learning.get("what_i_am_changing"),
-            "note": "Narrative only — the strategy change itself was computed deterministically.",
+            "narrative_learned": learned,
+            "narrative_changing": changed,
+            "possibly_unsupported_terms": hallucinated[:5],
+            "note": (
+                "Supplementary narrative. The strategy change shown to the user is the "
+                "deterministic one from strategy.py; this text never replaces it."
+            ),
         }
     except Exception as exc:  # noqa: BLE001 - never break the round
         logger.warning("CrewAI narration failed: %s", exc)

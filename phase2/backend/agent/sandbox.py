@@ -97,7 +97,6 @@ def run_screening(batch: list[dict[str, Any]]) -> dict[str, Any]:
         sandbox = client.create()
         results: dict[str, Any] = {}
         for entry in batch:
-            payload = json.dumps(entry).replace("'", "'\\''")
             code = (
                 "import subprocess,sys\n"
                 f"script = {SCREENING_SCRIPT!r}\n"

@@ -289,14 +289,31 @@ export interface StrategyDiff {
 export interface InvestigationResponse {
   disease: string;
   search_id: string | null;
+  run_id?: string;
   rounds_run: number;
+  /** Every round in order. round_1/round_2 below alias the first and last. */
+  rounds?: InvestigationRound[];
+  /** What the agent recalled from previous investigations of this disease. */
+  prior_experience?: {
+    recalled: boolean;
+    prior_rounds_recalled: number;
+    carried_exclusions: string[];
+    what_i_recalled?: string;
+    starting_adjustment?: string;
+  };
   round_1: InvestigationRound;
   learning: {
     what_i_learned: string;
     what_i_am_changing: string;
-    crew?: { orchestrated_by: string; agents: string[]; note?: string } | null;
-    deterministic_what_i_learned?: string;
-    deterministic_what_i_am_changing?: string;
+    // Supplementary only — never the displayed decision.
+    crew?: {
+      orchestrated_by: string;
+      agents: string[];
+      narrative_learned?: string | null;
+      narrative_changing?: string | null;
+      possibly_unsupported_terms?: string[];
+      note?: string;
+    } | null;
   };
   round_2: InvestigationRound;
   strategy_diff: StrategyDiff;

@@ -146,6 +146,8 @@ export default function AgentInvestigation({ searchId }: { searchId: string }) {
 
   const published = data?.published;
   const diff = data?.strategy_diff;
+  // Backend returns every round; round_1/round_2 alias first and last.
+  const allRounds = data ? (data.rounds ?? [data.round_1, data.round_2]) : [];
 
   return (
     <div className="mb-5 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
@@ -187,7 +189,25 @@ export default function AgentInvestigation({ searchId }: { searchId: string }) {
 
       {data && (
         <div className="animate-fade-up space-y-3">
-          <RoundBlock round={data.round_1} label="Round 1" />
+          {/* Cross-investigation memory: only shown when the agent actually
+              recalled a previous run of this disease. */}
+          {data.prior_experience?.recalled && (
+            <div className="rounded-xl border border-accent/30 bg-accent-soft/30 p-3">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                Recalled from previous investigations
+              </p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-300">
+                {data.prior_experience.what_i_recalled}
+              </p>
+              {data.prior_experience.carried_exclusions.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                  already ruled out: {data.prior_experience.carried_exclusions.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+
+          <RoundBlock round={allRounds[0]} label="Round 1" />
 
           {/* What I learned */}
           <div className="rounded-xl border-l-2 border-neutral-300 bg-neutral-50 p-4 dark:border-neutral-600 dark:bg-neutral-800/50">
@@ -218,7 +238,15 @@ export default function AgentInvestigation({ searchId }: { searchId: string }) {
             )}
           </div>
 
-          <RoundBlock round={data.round_2} label="Round 2 (adapted)" />
+          {allRounds.slice(1).map((r, i) => (
+            <RoundBlock
+              key={r.round_number}
+              round={r}
+              label={`Round ${r.round_number} — adapted${
+                i === allRounds.length - 2 && allRounds.length > 2 ? " (final)" : ""
+              }`}
+            />
+          ))}
 
           {/* Actual outcome — never dressed up */}
           <div className="flex flex-wrap items-center gap-2">
@@ -245,10 +273,29 @@ export default function AgentInvestigation({ searchId }: { searchId: string }) {
           )}
 
           {data.learning.crew && (
-            <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
-              Narrated by {data.learning.crew.agents.length} CrewAI agents. The strategy change itself is
-              computed deterministically, not by an LLM.
-            </p>
+            <details className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+              <summary className="cursor-pointer text-[11px] text-neutral-400 dark:text-neutral-500">
+                AI commentary from {data.learning.crew.agents.length} CrewAI agents — supplementary,
+                not the decision
+              </summary>
+              {data.learning.crew.narrative_learned && (
+                <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">
+                  {data.learning.crew.narrative_learned}
+                </p>
+              )}
+              {data.learning.crew.narrative_changing && (
+                <p className="mt-1.5 text-xs text-neutral-600 dark:text-neutral-300">
+                  {data.learning.crew.narrative_changing}
+                </p>
+              )}
+              {(data.learning.crew.possibly_unsupported_terms?.length ?? 0) > 0 && (
+                <p className="mt-2 text-[11px] text-orange-600 dark:text-orange-400">
+                  ⚠ This narrative mentions terms not found in the investigated candidates
+                  ({data.learning.crew.possibly_unsupported_terms!.join(", ")}). The strategy change
+                  above is the authoritative, deterministic one.
+                </p>
+              )}
+            </details>
           )}
         </div>
       )}
