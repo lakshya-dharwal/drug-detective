@@ -5,6 +5,7 @@ Endpoints:
   GET  /api/search/{id}/stream     -> text/event-stream        (real progress SSE)
   GET  /api/search/{id}/result     -> final ranked results JSON (non-SSE fallback)
   GET  /api/health                 -> {status: ok}
+  POST /api/investigate/{id}       -> two adaptive investigation rounds over a search
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from models import (  # noqa: E402
     SearchResponse,
 )
 from sse import create_job, event_stream, get_job, replay_cached_job, run_job  # noqa: E402
+from agent.rounds import run_investigation  # noqa: E402
 import asyncio  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -137,3 +139,25 @@ async def get_result(search_id: str) -> ResultResponse:
         result=job.result,
         error=job.error,
     )
+
+
+@app.post("/api/investigate/{search_id}")
+async def investigate(search_id: str) -> dict:
+    """Run the self-improving investigation loop over an ALREADY-completed search.
+
+    This never re-runs the (multi-minute) disease pipeline: it reads the ranked
+    candidates the search already produced, investigates a few of them, learns
+    from how that went, and runs a second round under an adapted strategy.
+    """
+    job = get_job(search_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Unknown search_id")
+    if job.status != JobStatus.COMPLETE or not job.result:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Search is '{job.status.value}' — investigate requires a completed search",
+        )
+
+    resolved = (job.result.get("disease_resolved") or {})
+    disease = resolved.get("name") or job.disease_normalized
+    return await run_in_threadpool(run_investigation, job.result, disease, search_id)
