@@ -17,6 +17,7 @@ import DnaMotif from "@/components/DnaMotif";
 import ThemeToggle from "@/components/ThemeToggle";
 import TrialFilter, { FILTERS, matchesFilter, type TrialFilterValue } from "@/components/TrialFilter";
 import ChatBox from "@/components/ChatBox";
+import AgentInvestigation from "@/components/AgentInvestigation";
 import { resultsToCsv, type PipelineResult } from "@/lib/api";
 
 type View = "progress" | "results" | "failed";
@@ -85,12 +86,12 @@ export default function SearchPage() {
         </div>
       )}
 
-      {view === "results" && result && <Results result={result} />}
+      {view === "results" && result && <Results result={result} searchId={params.id} />}
     </main>
   );
 }
 
-function Results({ result }: { result: PipelineResult }) {
+function Results({ result, searchId }: { result: PipelineResult; searchId: string }) {
   const candidates = result.ranked_candidates;
   const [filter, setFilter] = useState<TrialFilterValue>("all");
 
@@ -194,6 +195,8 @@ function Results({ result }: { result: PipelineResult }) {
           </ul>
         </details>
       )}
+
+      <AgentInvestigation searchId={searchId} />
 
       <ChatBox result={result} />
     </div>
