@@ -3,7 +3,6 @@
  * No sidebar, no dashboard. Faint DNA motif as background texture only.
  */
 import SearchBox from "@/components/SearchBox";
-import AuthButton from "@/components/AuthButton";
 import DnaMotif from "@/components/DnaMotif";
 import Wordmark from "@/components/Wordmark";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -22,8 +21,11 @@ export default function Home() {
       <header className="z-10 flex w-full max-w-5xl items-center justify-between py-6">
         <Wordmark size="sm" />
         <div className="flex items-center gap-3">
+          {/* Auth temporarily disabled on the hackathon branch — the sign-in
+              modal rendered behind the hero and blocked the demo. AuthButton.tsx
+              and lib/supabaseClient.ts are untouched, so re-enabling is a
+              one-line import. Search never required auth. */}
           <ThemeToggle />
-          <AuthButton />
         </div>
       </header>
 

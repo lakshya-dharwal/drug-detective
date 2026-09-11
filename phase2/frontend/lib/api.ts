@@ -223,3 +223,105 @@ export function resultsToCsv(disease: string, candidates: RankResult[]): string 
   );
   return [`# Drug Detective results for: ${disease}`, header.join(","), ...rows].join("\n");
 }
+
+// ---- Self-improving investigation loop --------------------------------------
+// Shapes mirror what POST /api/investigate/{search_id} actually returns. Fields
+// the backend may omit (crew narration, screening, One publish) are optional so
+// the panel renders honestly when an integration didn't run.
+
+export interface InvestigationStrategy {
+  round_number: number;
+  candidate_selection: string;
+  candidate_count: number;
+  excluded_drugs: string[];
+  evidence_priority: string[];
+  query_formulation: string;
+  changed_lever: string | null;
+  rationale: string;
+}
+
+export interface ScreeningResult {
+  screening_score?: number;
+  flag?: string;
+  items_screened?: number;
+  corroborating?: number;
+  contradicting?: number;
+  latest_year?: number | null;
+}
+
+export interface InvestigationFinding {
+  drug_name: string;
+  drug_chembl_id: string;
+  target: string | null;
+  rank_score: number | null;
+  max_clinical_phase: string | null;
+  investigation_confidence: number;
+  outcome: "promising" | "weak" | "inconclusive" | string;
+  what_worked: string[];
+  what_failed: string[];
+  live_evidence_count?: number;
+  screening?: ScreeningResult;
+}
+
+export interface InvestigationRound {
+  round_number: number;
+  strategy: InvestigationStrategy;
+  sources_used?: {
+    youcom?: boolean;
+    daytona?: boolean;
+    daytona_detail?: string | null;
+    live_evidence_items?: number;
+  };
+  candidates_investigated: string[];
+  findings: InvestigationFinding[];
+  mean_confidence: number;
+  promising_count: number;
+  weak_count: number;
+  inconclusive_count: number;
+}
+
+export interface StrategyDiff {
+  changed_lever: string | null;
+  rationale: string;
+  changes: Record<string, { before: unknown; after: unknown }>;
+}
+
+export interface InvestigationResponse {
+  disease: string;
+  search_id: string | null;
+  rounds_run: number;
+  round_1: InvestigationRound;
+  learning: {
+    what_i_learned: string;
+    what_i_am_changing: string;
+    crew?: { orchestrated_by: string; agents: string[]; note?: string } | null;
+    deterministic_what_i_learned?: string;
+    deterministic_what_i_am_changing?: string;
+  };
+  round_2: InvestigationRound;
+  strategy_diff: StrategyDiff;
+  improvement: {
+    mean_confidence_round_1: number;
+    mean_confidence_round_2: number;
+    delta: number;
+    promising_round_1: number;
+    promising_round_2: number;
+  };
+  published?: {
+    published: boolean;
+    platform?: string;
+    page_url?: string | null;
+    title?: string;
+    reason?: string;
+  };
+}
+
+/** Run the two-round adaptive investigation over an already-completed search. */
+export async function runInvestigation(searchId: string): Promise<InvestigationResponse> {
+  const res = await fetch(`${API_BASE}/api/investigate/${searchId}`, { method: "POST" });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Investigation failed (${res.status}): ${detail.slice(0, 200)}`);
+  }
+  return res.json();
+}

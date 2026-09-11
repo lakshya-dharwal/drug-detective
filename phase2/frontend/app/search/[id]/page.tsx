@@ -17,6 +17,7 @@ import DnaMotif from "@/components/DnaMotif";
 import ThemeToggle from "@/components/ThemeToggle";
 import TrialFilter, { FILTERS, matchesFilter, type TrialFilterValue } from "@/components/TrialFilter";
 import ChatBox from "@/components/ChatBox";
+import AgentInvestigation from "@/components/AgentInvestigation";
 import { resultsToCsv, type PipelineResult } from "@/lib/api";
 
 type View = "progress" | "results" | "failed";
@@ -85,12 +86,12 @@ export default function SearchPage() {
         </div>
       )}
 
-      {view === "results" && result && <Results result={result} />}
+      {view === "results" && result && <Results result={result} searchId={params.id} />}
     </main>
   );
 }
 
-function Results({ result }: { result: PipelineResult }) {
+function Results({ result, searchId }: { result: PipelineResult; searchId: string }) {
   const candidates = result.ranked_candidates;
   const [filter, setFilter] = useState<TrialFilterValue>("all");
 
@@ -131,6 +132,11 @@ function Results({ result }: { result: PipelineResult }) {
 
   return (
     <div className="animate-fade-up">
+      {/* The agent loop leads: with ~60+ ranked candidates below, burying this
+          under the list meant nobody scrolled to it. Collapsed it is just a
+          header and a button, so it costs the results almost no vertical space. */}
+      <AgentInvestigation searchId={searchId} />
+
       <div className="mb-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-neutral-500 dark:text-neutral-400">

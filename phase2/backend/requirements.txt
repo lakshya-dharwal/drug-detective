@@ -15,3 +15,8 @@ openai>=1.30.0
 
 # Dev only: fast local tests for the agent loop (not needed at runtime)
 pytest>=8.0.0
+
+# Hackathon sponsor integrations. NOTE: crewai needs Python <=3.12 (tiktoken has
+# no 3.14 wheel), so the backend venv is built with python3.12.
+crewai>=1.15.0
+daytona>=0.211.0

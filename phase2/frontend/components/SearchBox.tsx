@@ -8,7 +8,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { startSearch } from "@/lib/api";
-import { supabase } from "@/lib/supabaseClient";
 
 const EXAMPLES = ["glioblastoma", "rheumatoid arthritis", "pulmonary hypertension"];
 
@@ -24,8 +23,9 @@ export default function SearchBox() {
     setBusy(true);
     setError(null);
     try {
-      const userId = supabase ? (await supabase.auth.getUser()).data.user?.id ?? null : null;
-      const { search_id } = await startSearch(q, userId);
+      // Auth disabled on this branch: searches run anonymously (the backend
+      // has always treated X-User-Id as optional).
+      const { search_id } = await startSearch(q);
       router.push(`/search/${search_id}?disease=${encodeURIComponent(q)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
