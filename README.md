@@ -109,6 +109,47 @@ demonstrating a hardcoded string. `run_investigation(rounds=N)` keeps walking do
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    U(["disease<br/>query"]) --> P
+
+    subgraph EXISTING["Existing pipeline — UNTOUCHED"]
+        direction LR
+        P["Open Targets · PubMed<br/>openFDA · trials"] --> RANK["<b>Deterministic ranking</b><br/>35·30·20·10 −5<br/><b>no LLM</b>"]
+    end
+
+    RANK -->|"ranked<br/>candidates"| R1
+
+    subgraph LOOP["Self-improving investigation loop — POST /api/investigate/:id"]
+        direction LR
+        R1["<b>ROUND N</b><br/>select<br/>candidates"] --> YOU["<b>You.com</b><br/>live evidence<br/>+ provenance"]
+        YOU --> DAY["<b>Daytona</b><br/>sandboxed screen<br/>CONTRADICTION"]
+        DAY --> EVAL["investigation<br/>confidence"]
+        EVAL --> MEM[("<b>Experience</b><br/>worked /<br/>failed")]
+        MEM --> STRAT["<b>strategy.py</b><br/>ONE lever<br/><b>no LLM</b>"]
+        STRAT -.->|"<b>adapt & re-run</b>"| R1
+    end
+
+    STRAT --> ONE["<b>One</b>"] --> NOTION[("📝 <b>Real Notion page</b><br/>external side effect")]
+    STRAT --> CREW["<b>CrewAI</b> · 3 agents<br/><i>narrates, does not decide</i>"]
+
+    classDef untouched fill:#1e293b,stroke:#64748b,color:#e2e8f0
+    classDef loop fill:#052e16,stroke:#22c55e,color:#dcfce7,stroke-width:2px
+    classDef sponsor fill:#1e1b4b,stroke:#818cf8,color:#e0e7ff
+    classDef sink fill:#422006,stroke:#f59e0b,color:#fef3c7
+    class P,RANK untouched
+    class R1,EVAL,STRAT loop
+    class YOU,DAY,CREW,ONE sponsor
+    class MEM,NOTION sink
+```
+
+**Read the diagram for two things.** First, the grey box is untouched — the scientific score is
+still Phase 1's deterministic arithmetic. Second, follow the memory node: round 2's strategy is
+derived by **reading experience back out of storage**, not by passing state in process. That is
+what makes it a closed loop rather than a two-step script.
+
+### Code layout
+
 Additive. The existing pipeline was not rewritten.
 
 ```
