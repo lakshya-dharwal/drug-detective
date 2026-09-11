@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from agent import one_client, sandbox as daytona_sandbox, youcom
+from agent.crew import narrate_round
 from agent.experience import Experience, load_experiences, record_experiences
 from agent.strategy import (
     Learning,
@@ -243,6 +245,39 @@ def run_round(
 
     findings = [investigate_candidate(cand, ranked, strat) for cand in selected]
 
+    # --- Live web evidence (You.com) + sandboxed screening (Daytona) ---------
+    # Both are additive: without keys the round still completes on pipeline
+    # evidence alone, and `sources_used` records honestly what actually ran.
+    screen_batch: list[dict[str, Any]] = []
+    for cand, finding in zip(selected, findings):
+        items = youcom.search_evidence(
+            drug=finding["drug_name"], disease=disease,
+            formulation=strat.query_formulation,
+            mechanism=cand.get("mechanism_of_action") or cand.get("target_hgnc_symbol"),
+        )
+        finding["live_evidence"] = items
+        finding["live_evidence_count"] = len(items)
+        if items:
+            screen_batch.append({
+                "drug": finding["drug_name"], "disease": disease, "evidence": items,
+            })
+
+    screening = daytona_sandbox.run_screening(screen_batch)
+    for finding in findings:
+        result = (screening.get("results") or {}).get(finding["drug_name"])
+        if result and "error" not in result:
+            finding["screening"] = result
+            # A contradiction found in LIVE evidence is new information the
+            # indexed pipeline could not have known. It downgrades the
+            # investigation verdict only — never the Phase 1 ranking score.
+            if result.get("flag") == "contradicted":
+                finding["outcome"] = "weak"
+                finding["what_failed"] = finding["what_failed"] + ["live_contradiction"]
+            elif result.get("flag") == "supported":
+                finding["what_worked"] = finding["what_worked"] + ["live_corroboration"]
+        else:
+            finding["screening"] = {}
+
     if persist and findings:
         record_experiences([
             Experience(
@@ -266,6 +301,12 @@ def run_round(
     return {
         "round_number": round_number,
         "strategy": strat.to_dict(),
+        "sources_used": {
+            "youcom": youcom.is_configured(),
+            "daytona": bool(screening.get("executed")),
+            "daytona_detail": screening.get("reason") or screening.get("sandbox_id"),
+            "live_evidence_items": sum(f.get("live_evidence_count", 0) for f in findings),
+        },
         "candidates_investigated": [f["drug_name"] for f in findings],
         "findings": findings,
         "mean_confidence": mean_conf,
@@ -281,6 +322,7 @@ def run_investigation(
     search_id: Optional[str] = None,
     rounds: int = 2,
     persist: bool = True,
+    publish: bool = True,
 ) -> dict[str, Any]:
     """Run round 1, learn from it, then run an adapted round 2.
 
@@ -320,14 +362,29 @@ def run_investigation(
         strategy=strat_2, search_id=search_id, persist=persist,
     )
 
-    return {
+    learning_payload = learning.to_dict()
+    diff = strategy_diff(strat_1, strat_2)
+
+    # CrewAI narrates the (already-decided) adaptation for a human reader.
+    crew_narrative = narrate_round(disease, round_1, round_2, learning_payload, diff)
+    if crew_narrative:
+        learning_payload = {
+            **learning_payload,
+            "crew": crew_narrative,
+            "deterministic_what_i_learned": learning.what_i_learned,
+            "deterministic_what_i_am_changing": learning.what_i_am_changing,
+            "what_i_learned": crew_narrative["what_i_learned"],
+            "what_i_am_changing": crew_narrative["what_i_am_changing"],
+        }
+
+    investigation = {
         "disease": disease,
         "search_id": search_id,
         "rounds_run": rounds,
         "round_1": round_1,
-        "learning": learning.to_dict(),
+        "learning": learning_payload,
         "round_2": round_2,
-        "strategy_diff": strategy_diff(strat_1, strat_2),
+        "strategy_diff": diff,
         "improvement": {
             "mean_confidence_round_1": round_1["mean_confidence"],
             "mean_confidence_round_2": round_2["mean_confidence"],
@@ -336,3 +393,12 @@ def run_investigation(
             "promising_round_2": round_2["promising_count"],
         },
     }
+
+    # The loop's external side effect: write the outcome into the user's real
+    # Notion workspace via One. Reported honestly whether or not it landed.
+    if publish:
+        investigation["published"] = one_client.publish_investigation(investigation)
+    else:
+        investigation["published"] = {"published": False, "reason": "publishing disabled"}
+
+    return investigation
